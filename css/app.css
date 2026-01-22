@@ -1,0 +1,651 @@
+/**
+ * PDF結合ツール カスタムスタイル
+ */
+
+/* ========== 全体レイアウト ========== */
+
+body {
+  background-color: #f5f5f5;
+}
+
+.container {
+  max-width: 1400px;
+}
+
+/* ========== ドラッグ&ドロップゾーン ========== */
+
+.drop-zone {
+  border: 3px dashed #90caf9;
+  border-radius: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  background-color: #e3f2fd;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  margin: 15px 0;
+}
+
+.drop-zone:hover {
+  border-color: #42a5f5;
+  background-color: #bbdefb;
+  transform: scale(1.01);
+}
+
+.drop-zone.drag-over {
+  border-color: #1976d2;
+  background-color: #64b5f6;
+  border-width: 4px;
+  transform: scale(1.02);
+  box-shadow: 0 8px 16px rgba(25, 118, 210, 0.3);
+}
+
+.drop-zone-content {
+  pointer-events: none;
+}
+
+.drop-zone-content i.large {
+  font-size: 64px;
+  color: #1976d2;
+  margin-bottom: 10px;
+}
+
+.drop-zone-content h5 {
+  color: #1565c0;
+  margin: 10px 0;
+  font-weight: 500;
+}
+
+.drop-zone-content p {
+  color: #424242;
+  margin: 5px 0;
+}
+
+.drop-zone-content .file-field {
+  pointer-events: auto;
+  margin: 15px 0;
+}
+
+/* ドラッグ中のグローバルスタイル */
+body.dragging .drop-zone {
+  border-color: #1976d2;
+  background-color: #bbdefb;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+/* ========== PDF一覧 ========== */
+
+#pdfList {
+  max-height: 600px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+
+.pdf-list-item {
+  transition: background-color 0.2s ease;
+  padding: 10px 15px !important;
+}
+
+.pdf-list-item:hover {
+  background-color: #e3f2fd;
+}
+
+.pdf-list-item.active {
+  background-color: #1976d2 !important;
+  color: white;
+}
+
+.pdf-list-item.active .grey-text {
+  color: #e3f2fd !important;
+}
+
+.pdf-list-item.active .badge {
+  background-color: white !important;
+  color: #1976d2 !important;
+}
+
+.pdf-item-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.pdf-item-content strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* チェックボックスのスタイル調整 */
+.pdf-checkbox + span {
+  padding-left: 30px;
+}
+
+/* PDF移動ボタン */
+.pdf-move-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pdf-move-buttons .btn-floating.btn-small {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+}
+
+.pdf-move-buttons .btn-floating.btn-small i {
+  font-size: 18px;
+  line-height: 28px;
+}
+
+.pdf-move-buttons .btn-floating:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+#pdfListActions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* ========== ページグリッド ========== */
+
+.page-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+  max-height: 600px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+/* モバイル: 2カラム */
+@media (max-width: 600px) {
+  .page-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+}
+
+/* タブレット: 3-4カラム */
+@media (min-width: 601px) and (max-width: 992px) {
+  .page-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* PC: 4-6カラム */
+@media (min-width: 993px) {
+  .page-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+
+/* ========== ページカード ========== */
+
+.page-card {
+  position: relative;
+}
+
+.page-thumbnail {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  background-color: white;
+}
+
+.page-thumbnail img {
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: opacity 0.3s ease;
+}
+
+.page-thumbnail:hover {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+/* 含める状態 */
+.page-thumbnail.included {
+  border: 3px solid #4caf50;
+}
+
+.page-thumbnail.included img {
+  opacity: 1;
+}
+
+/* 除外状態 */
+.page-thumbnail.excluded {
+  border: 3px solid #f44336;
+}
+
+.page-thumbnail.excluded img {
+  opacity: 0.4;
+  filter: grayscale(60%);
+}
+
+/* ========== ページオーバーレイ ========== */
+
+.page-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.6) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.page-thumbnail:hover .page-overlay {
+  opacity: 1;
+}
+
+.page-number {
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  background-color: rgba(0, 0, 0, 0.5);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.page-checkbox {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.page-checkbox label {
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 6px 12px;
+  border-radius: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin: 0;
+}
+
+.page-checkbox label:hover {
+  background-color: white;
+}
+
+.page-checkbox label span {
+  color: #333;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Materializeのチェックボックススタイル調整 */
+.page-checkbox [type="checkbox"].filled-in:checked + span:not(.lever):after {
+  border: 2px solid #4caf50;
+  background-color: #4caf50;
+}
+
+/* ========== ページコントロール ========== */
+
+#pageControls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+#pageControls .chip {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#pageControls .right {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* モバイル: ボタンを縦並び */
+@media (max-width: 600px) {
+  #pageControls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #pageControls .right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  #pageControls .btn-small {
+    flex: 1;
+    font-size: 11px;
+    padding: 0 8px;
+  }
+}
+
+/* ========== ボタンスタイル ========== */
+
+.btn,
+.btn-small {
+  text-transform: none;
+}
+
+.btn[disabled],
+.btn-small[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ========== スクロールバーカスタマイズ（Webkit） ========== */
+
+#pdfList::-webkit-scrollbar,
+.page-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+#pdfList::-webkit-scrollbar-track,
+.page-grid::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+#pdfList::-webkit-scrollbar-thumb,
+.page-grid::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+#pdfList::-webkit-scrollbar-thumb:hover,
+.page-grid::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* ========== プログレスモーダル ========== */
+
+.modal {
+  max-width: 500px;
+}
+
+.modal .modal-content h5 {
+  margin-top: 0;
+}
+
+/* ========== レスポンシブ調整 ========== */
+
+/* モバイル: カードの余白を小さく */
+@media (max-width: 600px) {
+  .card {
+    margin: 10px 0;
+  }
+
+  .card .card-content {
+    padding: 15px;
+  }
+
+  .card .card-title {
+    font-size: 18px;
+  }
+
+  .container {
+    width: 95%;
+  }
+}
+
+/* ========== アクセシビリティ ========== */
+
+/* フォーカス時のアウトライン */
+button:focus,
+input:focus,
+.page-thumbnail:focus-within {
+  outline: 2px solid #2196f3;
+  outline-offset: 2px;
+}
+
+/* ========== 印刷スタイル ========== */
+
+@media print {
+  nav,
+  .btn,
+  .file-field,
+  #pageControls {
+    display: none;
+  }
+
+  .page-overlay {
+    opacity: 0 !important;
+  }
+}
+
+/* ========== アニメーション ========== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-card {
+  animation: fadeIn 0.3s ease;
+}
+
+/* ========== バッジスタイル調整 ========== */
+
+.badge {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#pdfCount {
+  margin-left: 8px;
+}
+
+/* ========== その他 ========== */
+
+/* ファイル入力のパス表示を見やすく */
+.file-path-wrapper {
+  overflow: hidden;
+}
+
+/* 情報カードのアイコン調整 */
+.card-title .material-icons {
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+/* ナビゲーションバーのアイコン調整 */
+nav .material-icons {
+  vertical-align: middle;
+}
+
+/* ========== ページプレビューモーダル ========== */
+
+.page-preview-modal {
+  max-height: 90vh !important;
+  height: 90vh !important;
+  max-width: 90vw;
+  width: 90vw;
+}
+
+.page-preview-modal .modal-content {
+  padding: 10px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.page-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.page-preview-title h5 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.page-preview-title p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.page-preview-actions label {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.page-preview-image-container {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background-color: #f5f5f5;
+}
+
+.page-preview-image-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.page-preview-image-wrapper img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  min-width: 60%;
+  min-height: 60%;
+  object-fit: contain;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  background: white;
+}
+
+.page-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+}
+
+.page-nav-btn:hover {
+  opacity: 1;
+}
+
+.page-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.page-nav-prev {
+  left: 10px;
+}
+
+.page-nav-next {
+  right: 10px;
+}
+
+.page-preview-hints {
+  margin-top: 5px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.page-preview-hints .material-icons.tiny {
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.page-preview-modal .modal-footer {
+  padding: 4px 24px;
+  height: auto;
+}
+
+/* モバイル対応 */
+@media (max-width: 600px) {
+  .page-preview-modal {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    max-width: 100vw !important;
+  }
+
+  .page-preview-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+
+  .page-nav-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .page-nav-btn i {
+    line-height: 40px;
+  }
+
+  .page-nav-prev {
+    left: 5px;
+  }
+
+  .page-nav-next {
+    right: 5px;
+  }
+
+  .page-preview-hints {
+    font-size: 0.8rem;
+  }
+}

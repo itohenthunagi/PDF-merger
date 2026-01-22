@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF結合ツール - クライアントサイド処理</title>
+
+  <!-- Content Security Policy -->
+  <!-- CDN使用版: 外部CDNからライブラリを読み込むため、一部を許可 -->
+  <!-- 開発環境用: ソースマップ読み込みのためconnect-srcを許可 -->
+  <!-- セキュリティ最優先の場合は、ライブラリをvendorディレクトリに同梱し、-->
+  <!-- script-src/style-src/font-src/connect-srcを 'self' のみに制限してください -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com;
+    style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com;
+    img-src 'self' data: blob:;
+    font-src 'self' data: https://fonts.gstatic.com;
+    worker-src 'self' blob:;
+    connect-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com;
+    object-src 'none';
+    base-uri 'none';
+    frame-ancestors 'none';
+  ">
+
+  <!-- Materialize CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="./css/app.css">
+</head>
+<body>
+  <!-- Header -->
+  <nav class="blue darken-2">
+    <div class="nav-wrapper container">
+      <a href="#" class="brand-logo">PDF結合ツール</a>
+      <ul class="right hide-on-med-and-down">
+        <li><a href="#"><i class="material-icons left">security</i>端末内処理・外部送信なし</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <div class="container" style="margin-top: 20px;">
+
+    <!-- Information Card -->
+    <div class="card blue lighten-5">
+      <div class="card-content">
+        <span class="card-title">
+          <i class="material-icons left">info</i>
+          このツールについて
+        </span>
+        <p>
+          複数のPDFファイルやZIPファイルをブラウザ内で結合できます。
+          <strong>全ての処理はお使いの端末内で完結</strong>し、データは外部に送信されません。
+        </p>
+      </div>
+    </div>
+
+    <!-- File Upload Section -->
+    <div class="card">
+      <div class="card-content">
+        <span class="card-title">
+          <i class="material-icons left">cloud_upload</i>
+          ファイルを選択
+        </span>
+
+        <!-- ドラッグ&ドロップゾーン -->
+        <div id="dropZone" class="drop-zone">
+          <div class="drop-zone-content">
+            <i class="material-icons large">cloud_upload</i>
+            <h5>ここにファイルをドラッグ&ドロップ</h5>
+            <p>または</p>
+            <div class="file-field">
+              <div class="btn blue">
+                <span><i class="material-icons left">folder_open</i>ファイル選択</span>
+                <input type="file" id="fileInput" multiple accept=".pdf,.zip">
+              </div>
+            </div>
+            <p class="grey-text" style="margin-top: 10px;">
+              <small>PDF または ZIP ファイル（複数可）</small>
+            </p>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 20px;">
+          <div class="col s12 m6">
+            <button id="clearBtn" class="btn waves-effect waves-light red" disabled>
+              <i class="material-icons left">clear</i>クリア
+            </button>
+          </div>
+          <div class="col s12 m6">
+            <button id="mergeBtn" class="btn waves-effect waves-light green right" disabled>
+              <i class="material-icons left">merge_type</i>結合してZip保存
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="row">
+      <!-- PDF List (Left Column) -->
+      <div class="col s12 m4">
+        <div class="card">
+          <div class="card-content">
+            <span class="card-title">
+              <i class="material-icons left">list</i>
+              PDF一覧
+              <span id="pdfCount" class="badge blue white-text">0</span>
+            </span>
+            <div id="pdfList" class="collection">
+              <div class="center-align grey-text" style="padding: 20px;">
+                ファイルが選択されていません
+              </div>
+            </div>
+            <div id="pdfListActions" style="margin-top: 10px; display: none;">
+              <button id="removeSelectedBtn" class="btn waves-effect waves-light red btn-small">
+                <i class="material-icons left">delete</i>選択したPDFを削除
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Page Preview (Right Column) -->
+      <div class="col s12 m8">
+        <div class="card">
+          <div class="card-content">
+            <span class="card-title">
+              <i class="material-icons left">image</i>
+              ページプレビュー
+              <span id="pageStats" class="badge green white-text" style="display: none;">0/0 ページ</span>
+            </span>
+
+            <!-- Page Controls -->
+            <div id="pageControls" style="display: none; margin-bottom: 15px;">
+              <div class="chip">
+                <strong id="selectedPdfName">選択なし</strong>
+              </div>
+              <div class="right">
+                <button id="selectAllBtn" class="btn-small waves-effect waves-light blue">
+                  <i class="material-icons left tiny">check_box</i>全選択
+                </button>
+                <button id="deselectAllBtn" class="btn-small waves-effect waves-light orange">
+                  <i class="material-icons left tiny">check_box_outline_blank</i>全解除
+                </button>
+                <button id="invertSelectionBtn" class="btn-small waves-effect waves-light purple">
+                  <i class="material-icons left tiny">swap_vert</i>反転
+                </button>
+              </div>
+            </div>
+
+            <!-- Page Thumbnails Grid -->
+            <div id="pagePreview" class="page-grid">
+              <div class="center-align grey-text" style="padding: 40px;">
+                PDFを選択するとページが表示されます
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress Modal -->
+  <div id="progressModal" class="modal">
+    <div class="modal-content center-align">
+      <h5 id="progressTitle">処理中...</h5>
+      <div class="progress">
+        <div id="progressBar" class="indeterminate"></div>
+      </div>
+      <p id="progressText">お待ちください</p>
+    </div>
+  </div>
+
+  <!-- Page Preview Modal -->
+  <div id="pagePreviewModal" class="modal modal-fixed-footer page-preview-modal">
+    <div class="modal-content">
+      <!-- ヘッダー -->
+      <div class="page-preview-header">
+        <div class="page-preview-title">
+          <h5 id="previewPdfName">ページプレビュー</h5>
+          <p id="previewPageInfo" class="grey-text">ページ 1 / 10</p>
+        </div>
+        <div class="page-preview-actions">
+          <label>
+            <input type="checkbox" id="previewIncludeCheckbox" class="filled-in" checked/>
+            <span id="previewIncludeLabel">このページを含める</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 画像表示エリア -->
+      <div class="page-preview-image-container">
+        <button id="previewPrevBtn" class="btn-floating btn-large blue page-nav-btn page-nav-prev">
+          <i class="material-icons">chevron_left</i>
+        </button>
+
+        <div class="page-preview-image-wrapper">
+          <img id="previewImage" src="" alt="Page Preview">
+        </div>
+
+        <button id="previewNextBtn" class="btn-floating btn-large blue page-nav-btn page-nav-next">
+          <i class="material-icons">chevron_right</i>
+        </button>
+      </div>
+
+      <!-- 操作ヒント -->
+      <div class="page-preview-hints">
+        <span class="grey-text">
+          <i class="material-icons tiny">keyboard</i>
+          矢印キーで前後のページに移動 | ESCで閉じる
+        </span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect waves-blue btn-flat">閉じる</a>
+    </div>
+  </div>
+
+  <!-- Materialize JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- PDF-lib -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+  <!-- JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- Application Scripts -->
+  <script src="./js/pdf-handler.js"></script>
+  <script src="./js/zip-handler.js"></script>
+  <script src="./js/ui-manager.js"></script>
+  <script src="./js/app.js"></script>
+
+  <script>
+    // PDF.js worker configuration
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+</body>
+</html>

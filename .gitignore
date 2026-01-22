@@ -1,0 +1,26 @@
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+.cache/
+
+# Development files
+test-*.html
+basic_design.md
+
+# Optional: Spec Story (開発履歴を含める場合はコメントアウト)
+.specstory/
+.cursorindexingignore
