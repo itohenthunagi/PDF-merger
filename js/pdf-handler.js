@@ -188,9 +188,11 @@ class PdfHandler {
           throw new Error(`${entry.name} は有効なPDFファイルではありません（ヘッダー: ${header}）`);
         }
 
-        // 元のPDFを読み込み
+        // 元のPDFを読み込み（暗号化PDFにも対応）
         console.log(`  pdf-libで読み込み中...`);
-        const srcPdf = await PDFLib.PDFDocument.load(entry.bytes);
+        const srcPdf = await PDFLib.PDFDocument.load(entry.bytes, {
+          ignoreEncryption: true
+        });
         console.log(`  ✓ 読み込み成功`);
 
         // 含めるページのインデックスを取得（0-based）
