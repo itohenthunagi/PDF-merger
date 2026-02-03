@@ -24,3 +24,39 @@ basic_design.md
 # Optional: Spec Story (開発履歴を含める場合はコメントアウト)
 .specstory/
 .cursorindexingignore
+
+# --- codex-default-ignore
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.cache/
+coverage/
+.DS_Store
+Thumbs.db
+
+# tool/agent metadata
+.cursor/
+.claude/
+.specstory/
+.cursorindexingignore
+
+# env
+.env
+.env.*
+!.env.sample
+!.env.example
+!.env.local.example
+
+# keys/secrets
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*account*.json
