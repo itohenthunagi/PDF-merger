@@ -37,8 +37,12 @@ class PdfHandler {
       const header = String.fromCharCode(...bytesForPdfLib.slice(0, 5));
       console.log(`  PDFヘッダー: ${header}`);
 
-      // PDF.jsでページ数を取得
-      const loadingTask = pdfjsLib.getDocument({ data: bytesForPdfJs });
+      // PDF.jsでページ数を取得（CMapを使用して日本語などのマルチバイト文字に対応）
+      const loadingTask = pdfjsLib.getDocument({
+        data: bytesForPdfJs,
+        cMapUrl: './vendor/cmaps/',
+        cMapPacked: true
+      });
       const pdfjsDoc = await loadingTask.promise;
       const numPages = pdfjsDoc.numPages;
 
