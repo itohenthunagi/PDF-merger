@@ -45,9 +45,12 @@ class UiManager {
     this.onPdfMoveCallback = null;
     this.onPageClickCallback = null;
     this.onMergePageReorderCallback = null;
-    this.onMergePageDeleteCallback = null;
+    this.onMergePageToggleCallback = null;
     this.onMergePageRotateCallback = null;
     this.onMergeDownloadCallback = null;
+    this.currentMergePreviewIndex = null;
+    this.currentMergeOrder = null;
+    this.currentPdfHandler = null;
   }
 
   /**
@@ -63,7 +66,14 @@ class UiManager {
     this.pagePreviewModalInstance = M.Modal.init(this.elements.pagePreviewModal, {
       dismissible: true,
       onOpenEnd: () => this.setupPagePreviewKeyboard(),
-      onCloseEnd: () => this.cleanupPagePreviewKeyboard()
+      onCloseEnd: () => {
+        this.cleanupPagePreviewKeyboard();
+        // 結合プレビューのコンテキストをクリア
+        this.currentMergePreviewIndex = null;
+        // チェックボックスと回転ボタンを再表示
+        this.elements.previewIncludeCheckbox.parentElement.style.display = '';
+        this.elements.previewRotateBtn.style.display = '';
+      }
     });
 
     // プレビューモーダルのボタンイベント
@@ -583,6 +593,10 @@ class UiManager {
 
     this.elements.mergePreviewStats.textContent = `全 ${mergeOrder.length} ページ`;
 
+    // コンテキストを保存
+    this.currentMergeOrder = mergeOrder;
+    this.currentPdfHandler = pdfHandler;
+
     for (let i = 0; i < mergeOrder.length; i++) {
       const item = mergeOrder[i];
       const entry = pdfHandler.getEntryById(item.entryId);
@@ -595,9 +609,10 @@ class UiManager {
       card.dataset.index = i;
 
       const rotationStyle = item.rotation ? `transform: rotate(${item.rotation}deg);` : '';
+      const includedClass = item.include ? 'included' : 'excluded';
 
       card.innerHTML = `
-        <div class="merge-page-thumbnail">
+        <div class="merge-page-thumbnail ${includedClass}">
           <img src="${thumbnail}" alt="Page ${i + 1}" style="${rotationStyle}">
           <div class="merge-page-number">${i + 1}</div>
           <div class="merge-page-source" title="${entry.name}">${entry.name} p.${item.pageIndex + 1}</div>
@@ -605,9 +620,12 @@ class UiManager {
             <button class="btn-floating btn-small waves-effect waves-light blue rotate-btn" title="90°回転">
               <i class="material-icons">rotate_right</i>
             </button>
-            <button class="btn-floating btn-small waves-effect waves-light red delete-btn" title="削除">
-              <i class="material-icons">close</i>
-            </button>
+          </div>
+          <div class="merge-page-checkbox">
+            <label>
+              <input type="checkbox" class="filled-in" ${item.include ? 'checked' : ''}/>
+              <span>${item.include ? '含める' : '除外'}</span>
+            </label>
           </div>
         </div>
       `;
@@ -623,12 +641,23 @@ class UiManager {
         }
       });
 
-      // 削除ボタン
-      card.querySelector('.delete-btn').addEventListener('click', (e) => {
+      // チェックボックス
+      const checkbox = card.querySelector('input[type="checkbox"]');
+      checkbox.addEventListener('change', (e) => {
         e.stopPropagation();
-        if (this.onMergePageDeleteCallback) {
-          this.onMergePageDeleteCallback(parseInt(card.dataset.index));
+        if (this.onMergePageToggleCallback) {
+          this.onMergePageToggleCallback(parseInt(card.dataset.index));
         }
+      });
+
+      // カードクリックで拡大表示
+      const thumbnailDiv = card.querySelector('.merge-page-thumbnail');
+      thumbnailDiv.addEventListener('click', (e) => {
+        // ボタンやチェックボックスのクリックは無視
+        if (e.target.closest('.merge-page-actions') || e.target.closest('.merge-page-checkbox')) {
+          return;
+        }
+        this.openMergePagePreviewModal(i, thumbnail);
       });
 
       grid.appendChild(card);
@@ -682,11 +711,11 @@ class UiManager {
   }
 
   /**
-   * 結合プレビューのページ削除コールバックを設定
+   * 結合プレビューのページ切り替えコールバックを設定
    * @param {Function} callback
    */
-  onMergePageDelete(callback) {
-    this.onMergePageDeleteCallback = callback;
+  onMergePageToggle(callback) {
+    this.onMergePageToggleCallback = callback;
   }
 
   /**
@@ -703,5 +732,102 @@ class UiManager {
    */
   onMergeDownload(callback) {
     this.onMergeDownloadCallback = callback;
+  }
+
+  /**
+   * 結合プレビューのページを拡大表示
+   * @param {number} index
+   * @param {string} thumbnailUrl
+   */
+  async openMergePagePreviewModal(index, thumbnailUrl) {
+    this.currentMergePreviewIndex = index;
+
+    const item = this.currentMergeOrder[index];
+    const entry = this.currentPdfHandler.getEntryById(item.entryId);
+
+    // モーダルの内容を設定
+    this.elements.previewPdfName.textContent = `${entry.name} - ページ ${item.pageIndex + 1}`;
+    this.elements.previewPageInfo.textContent = `結合後のページ ${index + 1} / ${this.currentMergeOrder.length}`;
+
+    // 低解像度のサムネイルで開く
+    this.elements.previewImage.src = thumbnailUrl;
+
+    // ナビゲーションボタンの有効/無効
+    this.elements.previewPrevBtn.disabled = index === 0;
+    this.elements.previewNextBtn.disabled = index === this.currentMergeOrder.length - 1;
+
+    // チェックボックスと回転ボタンは非表示（結合プレビューでは使わない）
+    this.elements.previewIncludeCheckbox.parentElement.style.display = 'none';
+    this.elements.previewRotateBtn.style.display = 'none';
+
+    // モーダルを開く
+    this.pagePreviewModalInstance.open();
+
+    // 高解像度サムネイルを生成
+    try {
+      const highResThumbnail = await this.currentPdfHandler.generateThumbnail(
+        entry,
+        item.pageIndex + 1,
+        2.5
+      );
+
+      // 回転を適用
+      this.elements.previewImage.className = '';
+      if (item.rotation === 90) {
+        this.elements.previewImage.classList.add('rotated-90');
+      } else if (item.rotation === 180) {
+        this.elements.previewImage.classList.add('rotated-180');
+      } else if (item.rotation === 270) {
+        this.elements.previewImage.classList.add('rotated-270');
+      }
+
+      this.elements.previewImage.src = highResThumbnail;
+    } catch (error) {
+      console.error('高解像度サムネイル生成エラー:', error);
+    }
+  }
+
+  /**
+   * 結合プレビューのナビゲーション処理
+   * @param {string} direction - 'prev' | 'next'
+   */
+  async navigateMergePagePreview(direction) {
+    let newIndex = this.currentMergePreviewIndex;
+
+    if (direction === 'prev' && newIndex > 0) {
+      newIndex--;
+    } else if (direction === 'next' && newIndex < this.currentMergeOrder.length - 1) {
+      newIndex++;
+    } else {
+      return;
+    }
+
+    const item = this.currentMergeOrder[newIndex];
+    const entry = this.currentPdfHandler.getEntryById(item.entryId);
+
+    // 高解像度サムネイルを生成
+    const thumbnailUrl = await this.currentPdfHandler.generateThumbnail(
+      entry,
+      item.pageIndex + 1,
+      2.5
+    );
+
+    // モーダルを更新
+    this.currentMergePreviewIndex = newIndex;
+    this.elements.previewPdfName.textContent = `${entry.name} - ページ ${item.pageIndex + 1}`;
+    this.elements.previewPageInfo.textContent = `結合後のページ ${newIndex + 1} / ${this.currentMergeOrder.length}`;
+    this.elements.previewImage.src = thumbnailUrl;
+    this.elements.previewPrevBtn.disabled = newIndex === 0;
+    this.elements.previewNextBtn.disabled = newIndex === this.currentMergeOrder.length - 1;
+
+    // 回転を適用
+    this.elements.previewImage.className = '';
+    if (item.rotation === 90) {
+      this.elements.previewImage.classList.add('rotated-90');
+    } else if (item.rotation === 180) {
+      this.elements.previewImage.classList.add('rotated-180');
+    } else if (item.rotation === 270) {
+      this.elements.previewImage.classList.add('rotated-270');
+    }
   }
 }

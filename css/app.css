@@ -744,6 +744,19 @@ nav .material-icons {
   display: block;
 }
 
+.merge-page-thumbnail.included img {
+  opacity: 1;
+}
+
+.merge-page-thumbnail.excluded img {
+  opacity: 0.4;
+  filter: grayscale(60%);
+}
+
+.merge-page-thumbnail.excluded {
+  border: 2px dashed #999;
+}
+
 .merge-page-number {
   position: absolute;
   top: 5px;
@@ -794,4 +807,25 @@ nav .material-icons {
 .merge-page-actions .btn-floating i {
   font-size: 16px;
   line-height: 28px;
+}
+
+.merge-page-checkbox {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.merge-page-card:hover .merge-page-checkbox {
+  opacity: 1;
+}
+
+.merge-page-checkbox label {
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 4px 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  font-size: 11px;
+  cursor: pointer;
 }

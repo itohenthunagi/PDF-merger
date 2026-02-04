@@ -462,7 +462,8 @@ class PdfHandler {
           this.mergeOrder.push({
             entryId: entry.id,
             pageIndex: i,
-            rotation: entry.pageRotations ? entry.pageRotations[i] : 0
+            rotation: entry.pageRotations ? entry.pageRotations[i] : 0,
+            include: true // デフォルトで含める
           });
         }
       }
@@ -480,11 +481,12 @@ class PdfHandler {
   }
 
   /**
-   * ページを削除（結合順序から除外）
+   * ページの含める/除外を切り替え
    * @param {number} index
    */
-  removeMergePage(index) {
-    this.mergeOrder.splice(index, 1);
+  toggleMergePage(index) {
+    if (!this.mergeOrder[index]) return;
+    this.mergeOrder[index].include = !this.mergeOrder[index].include;
   }
 
   /**
@@ -507,6 +509,9 @@ class PdfHandler {
       const mergedPdf = await PDFLib.PDFDocument.create();
 
       for (const item of this.mergeOrder) {
+        // include=trueのページのみを結合
+        if (!item.include) continue;
+
         const entry = this.getEntryById(item.entryId);
         if (!entry) continue;
 

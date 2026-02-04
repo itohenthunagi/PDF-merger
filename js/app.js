@@ -69,7 +69,7 @@ class PdfMergeApp {
     this.uiManager.onPdfMove((entryId, direction) => this.handlePdfMove(entryId, direction));
     this.uiManager.onPageRotate(() => this.handlePageRotate());
     this.uiManager.onMergePageReorder((fromIndex, toIndex) => this.handleMergePageReorder(fromIndex, toIndex));
-    this.uiManager.onMergePageDelete((index) => this.handleMergePageDelete(index));
+    this.uiManager.onMergePageToggle((index) => this.handleMergePageToggle(index));
     this.uiManager.onMergePageRotate((index) => this.handleMergePageRotate(index));
     this.uiManager.onMergeDownload(() => this.handleMergeDownload());
   }
@@ -480,6 +480,13 @@ class PdfMergeApp {
    * @param {string} direction - 'prev' | 'next'
    */
   async handlePagePreviewNavigate(direction) {
+    // 結合プレビューのコンテキストの場合
+    if (this.uiManager.currentMergePreviewIndex !== null) {
+      await this.uiManager.navigateMergePagePreview(direction);
+      return;
+    }
+
+    // 通常のページプレビューのコンテキスト
     const entry = this.uiManager.currentPreviewEntry;
     let newPageIndex = this.uiManager.currentPreviewPageIndex;
 
@@ -575,16 +582,11 @@ class PdfMergeApp {
   }
 
   /**
-   * 結合プレビューのページ削除処理
+   * 結合プレビューのページ切り替え処理
    * @param {number} index
    */
-  async handleMergePageDelete(index) {
-    if (this.pdfHandler.mergeOrder.length <= 1) {
-      this.uiManager.showError('最後のページは削除できません');
-      return;
-    }
-
-    this.pdfHandler.removeMergePage(index);
+  async handleMergePageToggle(index) {
+    this.pdfHandler.toggleMergePage(index);
 
     // プレビューを再表示
     await this.uiManager.showMergePreview(this.pdfHandler.mergeOrder, this.pdfHandler);
@@ -605,12 +607,14 @@ class PdfMergeApp {
    * 結合ダウンロード処理
    */
   async handleMergeDownload() {
-    if (this.pdfHandler.mergeOrder.length === 0) {
-      this.uiManager.showError('結合するページがありません');
+    const includedPages = this.pdfHandler.mergeOrder.filter(item => item.include);
+
+    if (includedPages.length === 0) {
+      this.uiManager.showError('含めるページが1つもありません');
       return;
     }
 
-    this.uiManager.showProgress('PDFを結合中...', `${this.pdfHandler.mergeOrder.length} ページを処理しています`);
+    this.uiManager.showProgress('PDFを結合中...', `${includedPages.length} ページを処理しています`);
 
     try {
       // PDF結合
