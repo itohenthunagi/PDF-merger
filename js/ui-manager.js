@@ -68,8 +68,18 @@ class UiManager {
       onOpenEnd: () => this.setupPagePreviewKeyboard(),
       onCloseEnd: () => {
         this.cleanupPagePreviewKeyboard();
-        // 結合プレビューのコンテキストをクリア
-        this.currentMergePreviewIndex = null;
+
+        // 結合プレビューのコンテキストがある場合は、結合プレビューに戻る
+        if (this.currentMergePreviewIndex !== null) {
+          // 結合プレビューモーダルを再度開く
+          setTimeout(() => {
+            this.mergePreviewModalInstance.open();
+          }, 100); // 少し遅延させてスムーズに
+
+          // 結合プレビューのコンテキストをクリア
+          this.currentMergePreviewIndex = null;
+        }
+
         // チェックボックスと回転ボタンを再表示
         this.elements.previewIncludeCheckbox.parentElement.style.display = '';
         this.elements.previewRotateBtn.style.display = '';
@@ -744,6 +754,9 @@ class UiManager {
 
     const item = this.currentMergeOrder[index];
     const entry = this.currentPdfHandler.getEntryById(item.entryId);
+
+    // 結合プレビューモーダルを一時的に閉じる
+    this.mergePreviewModalInstance.close();
 
     // モーダルの内容を設定
     this.elements.previewPdfName.textContent = `${entry.name} - ページ ${item.pageIndex + 1}`;
