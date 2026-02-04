@@ -55,6 +55,7 @@ class PdfHandler {
         bytes: bytesForPdfLib,  // pdf-lib専用のコピー
         numPages: numPages,
         includePages: new Array(numPages).fill(true), // デフォルトで全ページ含める
+        pageRotations: new Array(numPages).fill(0), // 全ページ0度で初期化
         pdfjsDoc: pdfjsDoc
       };
 
@@ -150,6 +151,61 @@ class PdfHandler {
   }
 
   /**
+   * ページのコンテンツが正常に表示されているか検証
+   * @param {PdfEntry} entry
+   * @param {number} pageNum - 1-based page number
+   * @returns {Promise<boolean>} - true: 正常, false: 真っ白or問題あり
+   */
+  async validatePageContent(entry, pageNum) {
+    try {
+      const page = await entry.pdfjsDoc.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 0.3 });
+
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({ canvasContext: context, viewport }).promise;
+
+      // ピクセルデータを取得して白色のみかチェック
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      let nonWhitePixels = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        // RGB全てが250以上でない場合は非白色ピクセル
+        if (data[i] < 250 || data[i+1] < 250 || data[i+2] < 250) {
+          nonWhitePixels++;
+        }
+      }
+
+      // 5%以上の非白色ピクセルがあれば正常とみなす
+      const threshold = (canvas.width * canvas.height) * 0.05;
+      return nonWhitePixels > threshold;
+    } catch (error) {
+      console.error(`ページ検証失敗: ${entry.name} - page ${pageNum}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 全エントリのコンテンツを検証
+   * @returns {Promise<string[]>} - 問題のあるPDFのファイル名配列
+   */
+  async validateAllEntries() {
+    const warnings = [];
+    for (const entry of this.entries) {
+      // 最初のページだけチェック（パフォーマンス考慮）
+      const isValid = await this.validatePageContent(entry, 1);
+      if (!isValid) {
+        warnings.push(entry.name);
+      }
+    }
+    return warnings;
+  }
+
+  /**
    * 全ページのサムネイルを生成
    * @param {PdfEntry} entry
    * @param {number} scale
@@ -212,8 +268,17 @@ class PdfHandler {
         // ページをコピー
         const copiedPages = await mergedPdf.copyPages(srcPdf, includedIndices);
 
-        // コピーしたページを追加
-        for (const page of copiedPages) {
+        // コピーしたページを追加（回転も適用）
+        for (let i = 0; i < copiedPages.length; i++) {
+          const page = copiedPages[i];
+          const originalIndex = includedIndices[i];
+          const rotation = entry.pageRotations ? entry.pageRotations[originalIndex] : 0;
+
+          // 回転を適用
+          if (rotation !== 0) {
+            page.setRotation(PDFLib.degrees(rotation));
+          }
+
           mergedPdf.addPage(page);
         }
       }
@@ -286,6 +351,19 @@ class PdfHandler {
     if (entry) {
       entry.includePages = entry.includePages.map(flag => !flag);
     }
+  }
+
+  /**
+   * ページを90度回転
+   * @param {string} entryId
+   * @param {number} pageIndex - 0-based
+   */
+  rotatePageBy90(entryId, pageIndex) {
+    const entry = this.getEntryById(entryId);
+    if (!entry) return;
+
+    const current = entry.pageRotations[pageIndex] || 0;
+    entry.pageRotations[pageIndex] = (current + 90) % 360;
   }
 
   /**
@@ -371,5 +449,85 @@ class PdfHandler {
    */
   generateId() {
     return `pdf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * 結合順序を初期化
+   */
+  initMergeOrder() {
+    this.mergeOrder = [];
+    for (const entry of this.entries) {
+      for (let i = 0; i < entry.numPages; i++) {
+        if (entry.includePages[i]) {
+          this.mergeOrder.push({
+            entryId: entry.id,
+            pageIndex: i,
+            rotation: entry.pageRotations ? entry.pageRotations[i] : 0
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * ページ順序を変更
+   * @param {number} fromIndex
+   * @param {number} toIndex
+   */
+  reorderMergePage(fromIndex, toIndex) {
+    const [item] = this.mergeOrder.splice(fromIndex, 1);
+    this.mergeOrder.splice(toIndex, 0, item);
+  }
+
+  /**
+   * ページを削除（結合順序から除外）
+   * @param {number} index
+   */
+  removeMergePage(index) {
+    this.mergeOrder.splice(index, 1);
+  }
+
+  /**
+   * 結合順序のページを回転
+   * @param {number} index
+   */
+  rotateMergePage(index) {
+    if (!this.mergeOrder[index]) return;
+    const current = this.mergeOrder[index].rotation || 0;
+    this.mergeOrder[index].rotation = (current + 90) % 360;
+  }
+
+  /**
+   * 結合順序に基づいてPDFを生成
+   * @returns {Promise<Uint8Array>}
+   */
+  async mergePdfsWithOrder() {
+    try {
+      console.log('=== 結合順序に基づくPDF結合開始 ===');
+      const mergedPdf = await PDFLib.PDFDocument.create();
+
+      for (const item of this.mergeOrder) {
+        const entry = this.getEntryById(item.entryId);
+        if (!entry) continue;
+
+        const srcPdf = await PDFLib.PDFDocument.load(entry.bytes, {
+          ignoreEncryption: true
+        });
+
+        const [copiedPage] = await mergedPdf.copyPages(srcPdf, [item.pageIndex]);
+
+        // 回転を適用
+        if (item.rotation !== 0) {
+          copiedPage.setRotation(PDFLib.degrees(item.rotation));
+        }
+
+        mergedPdf.addPage(copiedPage);
+      }
+
+      return await mergedPdf.save();
+    } catch (error) {
+      console.error('PDF結合エラー:', error);
+      throw new Error('PDFの結合に失敗しました');
+    }
   }
 }

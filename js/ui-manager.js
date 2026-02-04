@@ -26,7 +26,13 @@ class UiManager {
       previewIncludeCheckbox: document.getElementById('previewIncludeCheckbox'),
       previewIncludeLabel: document.getElementById('previewIncludeLabel'),
       previewPrevBtn: document.getElementById('previewPrevBtn'),
-      previewNextBtn: document.getElementById('previewNextBtn')
+      previewNextBtn: document.getElementById('previewNextBtn'),
+      previewRotateBtn: document.getElementById('previewRotateBtn'),
+      // 結合プレビューモーダル
+      mergePreviewModal: document.getElementById('mergePreviewModal'),
+      mergePreviewStats: document.getElementById('mergePreviewStats'),
+      mergePreviewGrid: document.getElementById('mergePreviewGrid'),
+      mergeDownloadBtn: document.getElementById('mergeDownloadBtn')
     };
 
     this.modalInstance = null;
@@ -35,6 +41,13 @@ class UiManager {
     this.onPageToggleCallback = null;
     this.onPagePreviewNavigateCallback = null;
     this.onPagePreviewToggleCallback = null;
+    this.onPageRotateCallback = null;
+    this.onPdfMoveCallback = null;
+    this.onPageClickCallback = null;
+    this.onMergePageReorderCallback = null;
+    this.onMergePageDeleteCallback = null;
+    this.onMergePageRotateCallback = null;
+    this.onMergeDownloadCallback = null;
   }
 
   /**
@@ -69,6 +82,25 @@ class UiManager {
     this.elements.previewIncludeCheckbox.addEventListener('change', (e) => {
       if (this.onPagePreviewToggleCallback) {
         this.onPagePreviewToggleCallback(e.target.checked);
+      }
+    });
+
+    this.elements.previewRotateBtn.addEventListener('click', () => {
+      if (this.onPageRotateCallback) {
+        this.onPageRotateCallback();
+      }
+    });
+
+    // 結合プレビューモーダルを初期化
+    this.mergePreviewModalInstance = M.Modal.init(this.elements.mergePreviewModal, {
+      dismissible: true
+    });
+
+    // ダウンロードボタン
+    this.elements.mergeDownloadBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (this.onMergeDownloadCallback) {
+        this.onMergeDownloadCallback();
       }
     });
   }
@@ -447,6 +479,7 @@ class UiManager {
    */
   setPreviewModalState(entry, pageIndex, thumbnailDataUrl) {
     const isIncluded = entry.includePages[pageIndex];
+    const rotation = entry.pageRotations ? entry.pageRotations[pageIndex] : 0;
 
     this.elements.previewPageInfo.textContent = `ページ ${pageIndex + 1} / ${entry.numPages}`;
     this.elements.previewImage.src = thumbnailDataUrl;
@@ -454,6 +487,16 @@ class UiManager {
     this.elements.previewIncludeLabel.textContent = isIncluded ? 'このページを含める' : 'このページを除外';
     this.elements.previewPrevBtn.disabled = pageIndex === 0;
     this.elements.previewNextBtn.disabled = pageIndex === entry.numPages - 1;
+
+    // 回転状態を反映
+    this.elements.previewImage.className = '';
+    if (rotation === 90) {
+      this.elements.previewImage.classList.add('rotated-90');
+    } else if (rotation === 180) {
+      this.elements.previewImage.classList.add('rotated-180');
+    } else if (rotation === 270) {
+      this.elements.previewImage.classList.add('rotated-270');
+    }
 
     this.currentPreviewPageIndex = pageIndex;
   }
@@ -503,5 +546,162 @@ class UiManager {
    */
   onPagePreviewToggle(callback) {
     this.onPagePreviewToggleCallback = callback;
+  }
+
+  /**
+   * ページ回転のコールバックを設定
+   * @param {Function} callback
+   */
+  onPageRotate(callback) {
+    this.onPageRotateCallback = callback;
+  }
+
+  /**
+   * PDF移動のコールバックを設定
+   * @param {Function} callback
+   */
+  onPdfMove(callback) {
+    this.onPdfMoveCallback = callback;
+  }
+
+  /**
+   * ページクリックのコールバックを設定
+   * @param {Function} callback
+   */
+  onPageClick(callback) {
+    this.onPageClickCallback = callback;
+  }
+
+  /**
+   * 結合プレビューを表示
+   * @param {Array} mergeOrder
+   * @param {PdfHandler} pdfHandler
+   */
+  async showMergePreview(mergeOrder, pdfHandler) {
+    const grid = this.elements.mergePreviewGrid;
+    grid.innerHTML = '';
+
+    this.elements.mergePreviewStats.textContent = `全 ${mergeOrder.length} ページ`;
+
+    for (let i = 0; i < mergeOrder.length; i++) {
+      const item = mergeOrder[i];
+      const entry = pdfHandler.getEntryById(item.entryId);
+
+      const thumbnail = await pdfHandler.generateThumbnail(entry, item.pageIndex + 1, 0.4);
+
+      const card = document.createElement('div');
+      card.className = 'merge-page-card';
+      card.draggable = true;
+      card.dataset.index = i;
+
+      const rotationStyle = item.rotation ? `transform: rotate(${item.rotation}deg);` : '';
+
+      card.innerHTML = `
+        <div class="merge-page-thumbnail">
+          <img src="${thumbnail}" alt="Page ${i + 1}" style="${rotationStyle}">
+          <div class="merge-page-number">${i + 1}</div>
+          <div class="merge-page-source" title="${entry.name}">${entry.name} p.${item.pageIndex + 1}</div>
+          <div class="merge-page-actions">
+            <button class="btn-floating btn-small waves-effect waves-light blue rotate-btn" title="90°回転">
+              <i class="material-icons">rotate_right</i>
+            </button>
+            <button class="btn-floating btn-small waves-effect waves-light red delete-btn" title="削除">
+              <i class="material-icons">close</i>
+            </button>
+          </div>
+        </div>
+      `;
+
+      // ドラッグ&ドロップイベント
+      this.setupMergePageDragEvents(card);
+
+      // 回転ボタン
+      card.querySelector('.rotate-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.onMergePageRotateCallback) {
+          this.onMergePageRotateCallback(parseInt(card.dataset.index));
+        }
+      });
+
+      // 削除ボタン
+      card.querySelector('.delete-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.onMergePageDeleteCallback) {
+          this.onMergePageDeleteCallback(parseInt(card.dataset.index));
+        }
+      });
+
+      grid.appendChild(card);
+    }
+
+    this.mergePreviewModalInstance.open();
+  }
+
+  /**
+   * ドラッグ&ドロップのセットアップ
+   * @param {HTMLElement} card
+   */
+  setupMergePageDragEvents(card) {
+    card.addEventListener('dragstart', (e) => {
+      card.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', card.dataset.index);
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+    });
+
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      card.classList.add('drag-over');
+    });
+
+    card.addEventListener('dragleave', () => {
+      card.classList.remove('drag-over');
+    });
+
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+
+      const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+      const toIndex = parseInt(card.dataset.index);
+
+      if (fromIndex !== toIndex && this.onMergePageReorderCallback) {
+        this.onMergePageReorderCallback(fromIndex, toIndex);
+      }
+    });
+  }
+
+  /**
+   * 結合プレビューのページ並び替えコールバックを設定
+   * @param {Function} callback
+   */
+  onMergePageReorder(callback) {
+    this.onMergePageReorderCallback = callback;
+  }
+
+  /**
+   * 結合プレビューのページ削除コールバックを設定
+   * @param {Function} callback
+   */
+  onMergePageDelete(callback) {
+    this.onMergePageDeleteCallback = callback;
+  }
+
+  /**
+   * 結合プレビューのページ回転コールバックを設定
+   * @param {Function} callback
+   */
+  onMergePageRotate(callback) {
+    this.onMergePageRotateCallback = callback;
+  }
+
+  /**
+   * 結合ダウンロードコールバックを設定
+   * @param {Function} callback
+   */
+  onMergeDownload(callback) {
+    this.onMergeDownloadCallback = callback;
   }
 }

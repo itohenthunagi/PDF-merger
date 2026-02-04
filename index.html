@@ -187,6 +187,9 @@
           <p id="previewPageInfo" class="grey-text">ページ 1 / 10</p>
         </div>
         <div class="page-preview-actions">
+          <button id="previewRotateBtn" class="btn-small waves-effect waves-light teal" style="margin-right: 10px;">
+            <i class="material-icons left tiny">rotate_right</i>90°回転
+          </button>
           <label>
             <input type="checkbox" id="previewIncludeCheckbox" class="filled-in" checked/>
             <span id="previewIncludeLabel">このページを含める</span>
@@ -219,6 +222,32 @@
     </div>
     <div class="modal-footer">
       <a href="#!" class="modal-close waves-effect waves-blue btn-flat">閉じる</a>
+    </div>
+  </div>
+
+  <!-- Merge Preview Modal -->
+  <div id="mergePreviewModal" class="modal modal-fixed-footer merge-preview-modal">
+    <div class="modal-content">
+      <div class="merge-preview-header">
+        <h5>結合プレビュー</h5>
+        <p id="mergePreviewStats" class="grey-text">全 0 ページ</p>
+      </div>
+
+      <p class="grey-text" style="font-size: 12px;">
+        <i class="material-icons tiny">info</i>
+        ドラッグ&ドロップでページの順番を変更できます。削除や回転も可能です。
+      </p>
+
+      <!-- ページグリッド -->
+      <div id="mergePreviewGrid" class="merge-preview-grid">
+        <!-- 動的に生成 -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect waves-red btn-flat">キャンセル</a>
+      <a href="#!" id="mergeDownloadBtn" class="waves-effect waves-green btn green">
+        <i class="material-icons left">download</i>ダウンロード
+      </a>
     </div>
   </div>
 

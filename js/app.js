@@ -67,6 +67,11 @@ class PdfMergeApp {
     this.uiManager.onPagePreviewNavigate((direction) => this.handlePagePreviewNavigate(direction));
     this.uiManager.onPagePreviewToggle((include) => this.handlePagePreviewToggle(include));
     this.uiManager.onPdfMove((entryId, direction) => this.handlePdfMove(entryId, direction));
+    this.uiManager.onPageRotate(() => this.handlePageRotate());
+    this.uiManager.onMergePageReorder((fromIndex, toIndex) => this.handleMergePageReorder(fromIndex, toIndex));
+    this.uiManager.onMergePageDelete((index) => this.handleMergePageDelete(index));
+    this.uiManager.onMergePageRotate((index) => this.handleMergePageRotate(index));
+    this.uiManager.onMergeDownload(() => this.handleMergeDownload());
   }
 
   /**
@@ -337,28 +342,42 @@ class PdfMergeApp {
       return;
     }
 
-    this.uiManager.showProgress('PDFを結合中...', `${totalIncludedPages} ページを処理しています`);
+    // 暗号化PDFの検証を実行
+    this.uiManager.showProgress('PDFを検証中...', 'コンテンツの正常性をチェックしています');
 
     try {
-      // PDF結合
-      const mergedBytes = await this.pdfHandler.mergePdfs();
-
-      // マニフェスト生成
-      const manifestJson = this.pdfHandler.generateManifest();
-
-      // ZIP生成
-      const zipBlob = await this.zipHandler.createResultZip(mergedBytes, manifestJson);
-
-      // ダウンロード
-      const filename = this.zipHandler.generateResultFileName();
-      this.zipHandler.downloadBlob(zipBlob, filename);
+      const warnings = await this.pdfHandler.validateAllEntries();
 
       this.uiManager.hideProgress();
-      this.uiManager.showSuccess(`結合完了！ ${filename} をダウンロードしました`);
+
+      if (warnings.length > 0) {
+        const message = `以下のPDFは正常に表示されていない可能性があります:\n\n${warnings.join('\n')}\n\n結合後のPDFが真っ白になる場合があります。\nこのまま結合を続行しますか？`;
+        if (!confirm(message)) {
+          return;
+        }
+      }
     } catch (error) {
-      console.error('結合エラー:', error);
+      console.error('検証エラー:', error);
       this.uiManager.hideProgress();
-      this.uiManager.showError(error.message);
+      // 検証エラーの場合は続行を確認
+      if (!confirm('PDFの検証中にエラーが発生しました。\n結合を続行しますか？')) {
+        return;
+      }
+    }
+
+    // 結合順序を初期化
+    this.pdfHandler.initMergeOrder();
+
+    // 結合プレビューを表示
+    this.uiManager.showProgress('プレビューを生成中...', 'サムネイルを作成しています');
+
+    try {
+      await this.uiManager.showMergePreview(this.pdfHandler.mergeOrder, this.pdfHandler);
+      this.uiManager.hideProgress();
+    } catch (error) {
+      console.error('プレビュー生成エラー:', error);
+      this.uiManager.hideProgress();
+      this.uiManager.showError('プレビューの生成に失敗しました');
     }
   }
 
@@ -516,6 +535,106 @@ class PdfMergeApp {
     if (success) {
       // UI更新
       this.updateUI();
+    }
+  }
+
+  /**
+   * ページ回転処理
+   */
+  async handlePageRotate() {
+    const entry = this.uiManager.currentPreviewEntry;
+    const pageIndex = this.uiManager.currentPreviewPageIndex;
+
+    if (!entry) return;
+
+    // ページを回転
+    this.pdfHandler.rotatePageBy90(entry.id, pageIndex);
+
+    // 高解像度サムネイルを再生成
+    const thumbnailUrl = await this.pdfHandler.generateThumbnail(entry, pageIndex + 1, 2.5);
+
+    // モーダルを更新
+    this.uiManager.updatePagePreviewModal(entry, pageIndex, thumbnailUrl);
+
+    // 小さいサムネイルも更新（選択中のPDFの場合）
+    if (this.pdfHandler.selectedEntryId === entry.id) {
+      this.uiManager.refreshPageCards(entry);
+    }
+  }
+
+  /**
+   * 結合プレビューのページ並び替え処理
+   * @param {number} fromIndex
+   * @param {number} toIndex
+   */
+  async handleMergePageReorder(fromIndex, toIndex) {
+    this.pdfHandler.reorderMergePage(fromIndex, toIndex);
+
+    // プレビューを再表示
+    await this.uiManager.showMergePreview(this.pdfHandler.mergeOrder, this.pdfHandler);
+  }
+
+  /**
+   * 結合プレビューのページ削除処理
+   * @param {number} index
+   */
+  async handleMergePageDelete(index) {
+    if (this.pdfHandler.mergeOrder.length <= 1) {
+      this.uiManager.showError('最後のページは削除できません');
+      return;
+    }
+
+    this.pdfHandler.removeMergePage(index);
+
+    // プレビューを再表示
+    await this.uiManager.showMergePreview(this.pdfHandler.mergeOrder, this.pdfHandler);
+  }
+
+  /**
+   * 結合プレビューのページ回転処理
+   * @param {number} index
+   */
+  async handleMergePageRotate(index) {
+    this.pdfHandler.rotateMergePage(index);
+
+    // プレビューを再表示
+    await this.uiManager.showMergePreview(this.pdfHandler.mergeOrder, this.pdfHandler);
+  }
+
+  /**
+   * 結合ダウンロード処理
+   */
+  async handleMergeDownload() {
+    if (this.pdfHandler.mergeOrder.length === 0) {
+      this.uiManager.showError('結合するページがありません');
+      return;
+    }
+
+    this.uiManager.showProgress('PDFを結合中...', `${this.pdfHandler.mergeOrder.length} ページを処理しています`);
+
+    try {
+      // PDF結合
+      const mergedBytes = await this.pdfHandler.mergePdfsWithOrder();
+
+      // マニフェスト生成
+      const manifestJson = this.pdfHandler.generateManifest();
+
+      // ZIP生成
+      const zipBlob = await this.zipHandler.createResultZip(mergedBytes, manifestJson);
+
+      // ダウンロード
+      const filename = this.zipHandler.generateResultFileName();
+      this.zipHandler.downloadBlob(zipBlob, filename);
+
+      this.uiManager.hideProgress();
+      this.uiManager.showSuccess(`結合完了！ ${filename} をダウンロードしました`);
+
+      // モーダルを閉じる
+      this.uiManager.mergePreviewModalInstance.close();
+    } catch (error) {
+      console.error('結合エラー:', error);
+      this.uiManager.hideProgress();
+      this.uiManager.showError(error.message);
     }
   }
 }
